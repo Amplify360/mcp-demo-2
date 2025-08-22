@@ -1,0 +1,3 @@
+"""
+MCP SSE Server package.
+"""
