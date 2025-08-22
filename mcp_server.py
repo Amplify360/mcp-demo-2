@@ -60,6 +60,7 @@ def main():
         parser.add_argument("--host", default="0.0.0.0")
         parser.add_argument("--port", type=int, default=8080)
         parser.add_argument("--log-level", default=None, help="Override log level")
+        parser.add_argument("--debug", action="store_true", help="Enable debug mode for IDE debugging")
         args = parser.parse_args()
 
         # Load configuration
@@ -91,8 +92,14 @@ def main():
         app = mcp_server.create_app(debug=True)
 
         # Start server
-        logger.info("Starting Uvicorn server")
-        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+        if args.debug:
+            logger.info("Debug mode enabled - server will wait for debugger attachment")
+            logger.info(f"Starting MCP server in debug mode on http://{args.host}:{args.port}")
+            # In debug mode, use reload=False to avoid conflicts with debugger
+            uvicorn.run(app, host=args.host, port=args.port, log_level="debug", reload=False)
+        else:
+            logger.info("Starting Uvicorn server")
+            uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
     except Exception as e:
         if "logger" in locals():

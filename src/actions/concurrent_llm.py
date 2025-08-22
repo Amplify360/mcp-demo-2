@@ -42,45 +42,99 @@ async def evaluation_sub_agent_action(
     if not LLM_API_KEY:
         raise ValueError("LLM API key is required")
     
+    if not LLM_BASE_URL:
+        raise ValueError("LLM_BASE_URL is required")
+    
+    if not LLM_MODEL:
+        raise ValueError("LLM_MODEL is required")
+    
     async def make_llm_call(call_id: int) -> dict[str, Any]:
         """Make a single call to the LLM API."""
-        headers = {
-            "Authorization": f"Bearer {LLM_API_KEY}",
-            "Content-Type": "application/json"
-        }
         
         payload = {
             "model": LLM_MODEL,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": context}
-            ],
-            "temperature": LLM_TEMPERATURE
+            ]
         }
+        
+        # Add temperature only for models that support it
+        # gpt-5-nano only supports default temperature (1.0)
+        if LLM_MODEL and not LLM_MODEL.startswith('gpt-5'):
+            payload["temperature"] = LLM_TEMPERATURE
+        
+        request_url = f"{LLM_BASE_URL}/chat/completions"
+        
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{LLM_BASE_URL}/chat/completions",
-                    headers=headers,
+                    request_url,
+                    headers={"Authorization": f"Bearer {LLM_API_KEY}", "Content-Type": "application/json"},
                     json=payload
                 )
+                
+                if response.status_code != 200:
+                    response_text = response.text
+                    logger.error(f"LLM call {call_id} - HTTP {response.status_code}: {response_text}")
+                
                 response.raise_for_status()
-                result = await response.json()
+                result = response.json()
+                
+                
+                if not isinstance(result, dict):
+                    raise ValueError(f"Expected dict response, got {type(result)}")
+                
+                choices = result.get('choices', [])
+                
+                if not choices:
+                    raise ValueError("No choices in response")
+                
+                message_content = choices[0].get('message', {}).get('content', '')
+                usage = result.get('usage', {})
+                tokens_used = usage.get('total_tokens', 0) if isinstance(usage, dict) else 0
                 
                 return {
                     "call_id": call_id,
                     "success": True,
-                    "response": result["choices"][0]["message"]["content"],
-                    "tokens_used": result.get("usage", {}).get("total_tokens", 0)
+                    "response": message_content,
+                    "tokens_used": tokens_used
                 }
                 
-        except Exception as e:
-            logger.error(f"LLM call {call_id} failed: {str(e)}")
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP {e.response.status_code}: {e.response.reason_phrase}"
+            try:
+                error_detail = e.response.text
+                logger.error(f"LLM call {call_id} - {error_msg}: {error_detail}")
+                error_msg += f" - {error_detail}"
+            except Exception:
+                logger.error(f"LLM call {call_id} - {error_msg}")
+            
             return {
                 "call_id": call_id,
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
+                "response": None,
+                "tokens_used": 0
+            }
+        except httpx.RequestError as e:
+            error_msg = f"Request failed: {str(e)}"
+            logger.error(f"LLM call {call_id} - {error_msg}")
+            return {
+                "call_id": call_id,
+                "success": False,
+                "error": error_msg,
+                "response": None,
+                "tokens_used": 0
+            }
+        except Exception as e:
+            error_msg = f"Unexpected error: {str(e)}"
+            logger.error(f"LLM call {call_id} - {error_msg}")
+            return {
+                "call_id": call_id,
+                "success": False,
+                "error": error_msg,
                 "response": None,
                 "tokens_used": 0
             }
@@ -96,6 +150,9 @@ async def evaluation_sub_agent_action(
     failed_calls = [r for r in results if not r["success"]]
     total_tokens = sum(r["tokens_used"] for r in results)
     
-    logger.info(f"Completed {len(successful_calls)}/{num_calls} successful LLM calls")
+    logger.info(f"Completed {len(successful_calls)}/{num_calls} successful LLM calls, total tokens: {total_tokens}")
+    
+    if failed_calls:
+        logger.warning(f"{len(failed_calls)} calls failed")
     
     return results
