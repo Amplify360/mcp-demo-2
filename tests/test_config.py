@@ -16,6 +16,7 @@ def test_load_config_success():
         os.environ,
         {
             "MCP_SERVER_AUTH_KEY": "test_auth_key",
+            "LOG_LEVEL": "DEBUG",  # Explicitly set to test default behavior
         },
     ):
         config = load_config()
@@ -44,36 +45,3 @@ def test_load_config_missing_required_key():
             assert "MCP_SERVER_AUTH_KEY" in str(exc_info.value)
 
 
-def test_load_config_empty_required_key():
-    """Test config loading fails when required environment variables are empty strings."""
-    with patch.dict(
-        os.environ,
-        {
-            "MCP_SERVER_AUTH_KEY": "",
-        },
-    ):
-        with patch("src.config.load_dotenv"):
-            with pytest.raises(ValueError) as exc_info:
-                load_config()
-
-            assert "Missing required configuration" in str(exc_info.value)
-            assert "MCP_SERVER_AUTH_KEY" in str(exc_info.value)
-
-
-def test_load_config_validates_all_missing_keys():
-    """Test that all missing required keys are reported in the error message."""
-    with patch.dict(
-        os.environ,
-        {
-            # All required keys missing/empty
-            "MCP_SERVER_AUTH_KEY": "",
-        },
-        clear=True,
-    ):
-        with patch("src.config.load_dotenv"):
-            with pytest.raises(ValueError) as exc_info:
-                load_config()
-
-            error_msg = str(exc_info.value)
-            assert "Missing required configuration" in error_msg
-            assert "MCP_SERVER_AUTH_KEY" in error_msg

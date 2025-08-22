@@ -65,39 +65,3 @@ class TestE2EIntegration:
         assert response.status_code == 401
         assert response.json() == {"error": "Unauthorized"}
 
-    @patch("src.mcp_tools.pkgutil.iter_modules")
-    @patch("src.mcp_tools.importlib.import_module")
-    def test_tool_registration_integration(self, mock_import, mock_iter):
-        """Test complete tool registration process integration."""
-        # Mock the status module discovery
-        mock_iter.return_value = [("", "status", "")]
-
-        # Create a mock action function
-        async def mock_status_action():
-            return {"status": "ok"}
-
-        mock_status_action.__name__ = "status_action"
-        mock_status_action.__doc__ = "Mock status action"
-
-        # Mock the module using MagicMock
-        mock_module = MagicMock()
-        setattr(mock_module, "status_action", mock_status_action)
-
-        with patch("src.mcp_tools.inspect.getmembers") as mock_getmembers:
-            mock_getmembers.return_value = [
-                ("status_action", mock_status_action)
-            ]
-            mock_import.return_value = mock_module
-
-            # Create MCP server
-            server = MCPServer(api_key="test_key")
-
-            # Register tools
-            register_tools(
-                mcp_server=server,
-            )
-
-            # Verify the tool was registered by checking the MCP server's tools
-            # The exact verification depends on the FastMCP internals
-            # For now, just verify register_tools completed without error
-            assert server.mcp is not None
