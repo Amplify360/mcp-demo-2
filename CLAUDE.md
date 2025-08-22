@@ -117,3 +117,4 @@ Optional:
 - `LOG_LEVEL`: Logging level (default: INFO)
 - `ENVIRONMENT`: Environment name (default: development)
 - `FILE_LOGGING`: Enable file logging (used in Docker containers)
+- use modern python type annotations

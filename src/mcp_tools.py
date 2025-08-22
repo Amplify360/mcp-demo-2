@@ -5,6 +5,7 @@ MCP tools registration for the server reference implementation.
 import importlib
 import inspect
 import logging
+import os
 import pkgutil
 import uuid
 from typing import Callable, TypeVar
@@ -19,6 +20,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
 from . import actions
+from .utils.keyvault import get_llm_api_key
 
 # ------------------------------------------------------------
 # Central place where *all* server-supplied objects live
@@ -163,10 +165,11 @@ def register_tools(mcp_server: MCPServer) -> None:
     """Register all MCP tools by auto-discovering action modules."""
 
     # Populate the dependencies registry
-    #     DEPENDENCIES.update({
-    #     "postmark_api_key": api_key,
-    #     "sender_email": from_email,
-    # })
+    DEPENDENCIES.update({
+        "llm_api_key": get_llm_api_key(),
+        "llm_base_url": os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
+        "llm_model": os.getenv("LLM_MODEL", "gpt-3.5-turbo"),
+    })
 
     logger.info("Starting auto-discovery of action modules")
 
