@@ -17,23 +17,25 @@ logger = logging.getLogger(__name__)
 LLM_API_KEY = get_llm_api_key()
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 LLM_MODEL = os.getenv("LLM_MODEL")
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
 
 
 async def evaluation_sub_agent_action(
     context: str,
     num_calls: int = 3,
     system_prompt: str = "You are a helpful assistant.",
-) -> dict[str, Any]:
+) -> list[dict[str, str]]:
     """
-    Make concurrent calls to an LLM with given context and system prompt.
+    Make concurrent calls to an LLM subagent with given context and system prompt.
     
     Args:
-        context: The context to send to the LLM
+        context: The context to send to the subagent
         num_calls: Number of concurrent calls to make (default: 3)
-        system_prompt: Fixed system prompt to send with each call
+        system_prompt: Intructions that you want to the subagent to apply to the context.
     
     Returns:
-        Dictionary with results list and metadata
+        List of results, as dictionary with the response key containing the response of the subagent call
+        Each item in the list is a response from a single subagent call
     """
     logger.info(f"Starting {num_calls} concurrent LLM calls")
     
@@ -53,7 +55,7 @@ async def evaluation_sub_agent_action(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": context}
             ],
-            "temperature": 0.7
+            "temperature": LLM_TEMPERATURE
         }
         
         try:
@@ -96,13 +98,4 @@ async def evaluation_sub_agent_action(
     
     logger.info(f"Completed {len(successful_calls)}/{num_calls} successful LLM calls")
     
-    return {
-        "results": results,
-        "summary": {
-            "total_calls": num_calls,
-            "successful_calls": len(successful_calls),
-            "failed_calls": len(failed_calls),
-            "total_tokens_used": total_tokens
-        },
-        "responses": [r["response"] for r in successful_calls]
-    }
+    return results

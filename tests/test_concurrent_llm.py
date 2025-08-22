@@ -19,12 +19,16 @@ async def test_concurrent_llm_action_success():
         "usage": {"total_tokens": 100}
     }
     
-    with patch("httpx.AsyncClient") as mock_client_class:
+    with patch("src.actions.concurrent_llm.LLM_API_KEY", "test-api-key"), \
+         patch("src.actions.concurrent_llm.LLM_BASE_URL", "https://api.openai.com/v1"), \
+         patch("src.actions.concurrent_llm.LLM_MODEL", "gpt-3.5-turbo"), \
+         patch("httpx.AsyncClient") as mock_client_class:
+        
         # Create an async context manager mock
         mock_client = AsyncMock()
         mock_response = AsyncMock()
         mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = AsyncMock()
+        mock_response.raise_for_status = lambda: None
         mock_client.post.return_value = mock_response
         
         # Set up the context manager properly
@@ -39,18 +43,18 @@ async def test_concurrent_llm_action_success():
             system_prompt="Test prompt"
         )
         
-        assert result["summary"]["total_calls"] == 2
-        assert result["summary"]["successful_calls"] == 2
-        assert result["summary"]["failed_calls"] == 0
-        assert len(result["responses"]) == 2
-        assert all(r == "Test response" for r in result["responses"])
+        assert len(result) == 2
+        assert all(r["success"] for r in result)
+        assert all(r["response"] == "Test response" for r in result)
+        assert all(r["tokens_used"] == 100 for r in result)
 
 
 @pytest.mark.asyncio
 async def test_concurrent_llm_action_missing_api_key():
     """Test error handling when API key is missing."""
     
-    with pytest.raises(ValueError, match="llm_api_key is required"):
+    with patch("src.actions.concurrent_llm.LLM_API_KEY", None), \
+         pytest.raises(ValueError, match="LLM API key is required"):
         await evaluation_sub_agent_action(
             context="Test context",
             num_calls=1,
@@ -75,16 +79,22 @@ async def test_concurrent_llm_action_with_failures():
                 "choices": [{"message": {"content": "Success"}}],
                 "usage": {"total_tokens": 50}
             })
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = lambda: None
         else:
             # Second call fails
-            mock_response.raise_for_status = AsyncMock(side_effect=Exception("API Error"))
+            def raise_error():
+                raise Exception("API Error")
+            mock_response.raise_for_status = raise_error
         
         return mock_response
     
-    with patch("httpx.AsyncClient") as mock_client_class:
+    with patch("src.actions.concurrent_llm.LLM_API_KEY", "test-api-key"), \
+         patch("src.actions.concurrent_llm.LLM_BASE_URL", "https://api.openai.com/v1"), \
+         patch("src.actions.concurrent_llm.LLM_MODEL", "gpt-3.5-turbo"), \
+         patch("httpx.AsyncClient") as mock_client_class:
+        
         mock_client = AsyncMock()
-        mock_client.post.side_effect = lambda *_args, **_kwargs: create_mock_response()
+        mock_client.post.side_effect = lambda *args, **kwargs: create_mock_response()
         
         # Set up the context manager properly
         mock_client_instance = AsyncMock()
@@ -98,8 +108,9 @@ async def test_concurrent_llm_action_with_failures():
             system_prompt="Test prompt"
         )
         
-        assert result["summary"]["total_calls"] == 2
-        assert result["summary"]["successful_calls"] == 1
-        assert result["summary"]["failed_calls"] == 1
-        assert len(result["responses"]) == 1
-        assert result["responses"][0] == "Success"
+        assert len(result) == 2
+        successful_calls = [r for r in result if r["success"]]
+        failed_calls = [r for r in result if not r["success"]]
+        assert len(successful_calls) == 1
+        assert len(failed_calls) == 1
+        assert successful_calls[0]["response"] == "Success"
