@@ -2,7 +2,7 @@
 Tests for concurrent LLM action.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -26,9 +26,12 @@ async def test_concurrent_llm_action_success():
         
         # Create an async context manager mock
         mock_client = AsyncMock()
-        mock_response = AsyncMock()
-        mock_response.json = AsyncMock(return_value=mock_response_data)
+        mock_response = Mock()
+        mock_response.json.return_value = mock_response_data
         mock_response.raise_for_status = lambda: None
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.text = ""
         mock_client.post.return_value = mock_response
         
         # Set up the context manager properly
@@ -71,20 +74,26 @@ async def test_concurrent_llm_action_with_failures():
     def create_mock_response():
         nonlocal call_count
         call_count += 1
-        mock_response = AsyncMock()
+        mock_response = Mock()
         
         if call_count == 1:
             # First call succeeds
-            mock_response.json = AsyncMock(return_value={
+            mock_response.json.return_value = {
                 "choices": [{"message": {"content": "Success"}}],
                 "usage": {"total_tokens": 50}
-            })
+            }
             mock_response.raise_for_status = lambda: None
+            mock_response.status_code = 200
+            mock_response.headers = {}
+            mock_response.text = ""
         else:
             # Second call fails
             def raise_error():
                 raise Exception("API Error")
             mock_response.raise_for_status = raise_error
+            mock_response.status_code = 200
+            mock_response.headers = {}
+            mock_response.text = ""
         
         return mock_response
     
