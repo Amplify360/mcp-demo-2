@@ -4,20 +4,25 @@ Concurrent LLM calls action implementation.
 
 import asyncio
 import logging
+import os
 from typing import Any
 
 import httpx
 
+from ..utils.keyvault import get_llm_api_key
+
 logger = logging.getLogger(__name__)
+
+# Global configuration loaded from key vault and environment
+LLM_API_KEY = get_llm_api_key()
+LLM_BASE_URL = os.getenv("LLM_BASE_URL")
+LLM_MODEL = os.getenv("LLM_MODEL")
 
 
 async def evaluation_sub_agent_action(
     context: str,
     num_calls: int = 3,
     system_prompt: str = "You are a helpful assistant.",
-    llm_api_key: str | None = None,
-    llm_base_url: str = "https://api.openai.com/v1",
-    llm_model: str = "gpt-3.5-turbo",
 ) -> dict[str, Any]:
     """
     Make concurrent calls to an LLM with given context and system prompt.
@@ -26,27 +31,24 @@ async def evaluation_sub_agent_action(
         context: The context to send to the LLM
         num_calls: Number of concurrent calls to make (default: 3)
         system_prompt: Fixed system prompt to send with each call
-        llm_api_key: API key for the LLM service
-        llm_base_url: Base URL for the LLM API
-        llm_model: LLM model to use for the calls
     
     Returns:
         Dictionary with results list and metadata
     """
     logger.info(f"Starting {num_calls} concurrent LLM calls")
     
-    if not llm_api_key:
-        raise ValueError("llm_api_key is required")
+    if not LLM_API_KEY:
+        raise ValueError("LLM API key is required")
     
     async def make_llm_call(call_id: int) -> dict[str, Any]:
         """Make a single call to the LLM API."""
         headers = {
-            "Authorization": f"Bearer {llm_api_key}",
+            "Authorization": f"Bearer {LLM_API_KEY}",
             "Content-Type": "application/json"
         }
         
         payload = {
-            "model": llm_model,
+            "model": LLM_MODEL,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": context}
@@ -57,7 +59,7 @@ async def evaluation_sub_agent_action(
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{llm_base_url}/chat/completions",
+                    f"{LLM_BASE_URL}/chat/completions",
                     headers=headers,
                     json=payload
                 )

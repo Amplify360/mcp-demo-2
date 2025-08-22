@@ -36,9 +36,7 @@ async def test_concurrent_llm_action_success():
         result = await evaluation_sub_agent_action(
             context="Test context",
             num_calls=2,
-            system_prompt="Test prompt",
-            llm_api_key="test-key",
-            llm_model="gpt-3.5-turbo"
+            system_prompt="Test prompt"
         )
         
         assert result["summary"]["total_calls"] == 2
@@ -56,9 +54,7 @@ async def test_concurrent_llm_action_missing_api_key():
         await evaluation_sub_agent_action(
             context="Test context",
             num_calls=1,
-            system_prompt="Test prompt",
-            llm_api_key=None,
-            llm_model="gpt-3.5-turbo"
+            system_prompt="Test prompt"
         )
 
 
@@ -99,9 +95,7 @@ async def test_concurrent_llm_action_with_failures():
         result = await evaluation_sub_agent_action(
             context="Test context",
             num_calls=2,
-            system_prompt="Test prompt",
-            llm_api_key="test-key",
-            llm_model="gpt-3.5-turbo"
+            system_prompt="Test prompt"
         )
         
         assert result["summary"]["total_calls"] == 2
